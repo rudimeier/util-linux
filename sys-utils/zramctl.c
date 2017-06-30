@@ -278,7 +278,7 @@ static int zram_used(struct zram *z)
 static int zram_has_control(struct zram *z)
 {
 	if (!z->control_probed) {
-		z->has_control = access(_PATH_SYS_CLASS "/zram-control/", F_OK) == 0 ? 1 : 0;
+		z->has_control = path_exist(_PATH_SYS_CLASS "/zram-control/") == 0 ? 1 : 0;
 		z->control_probed = 1;
 		DBG(fprintf(stderr, "zram-control: %s", z->has_control ? "yes" : "no"));
 	}
@@ -569,7 +569,10 @@ int main(int argc, char **argv)
 	int rc = 0, c, find = 0, act = A_NONE;
 	struct zram *zram = NULL;
 
-	enum { OPT_RAW = CHAR_MAX + 1 };
+	enum {
+		OPT_RAW = CHAR_MAX + 1,
+		OPT_SYSROOT,
+	};
 
 	static const struct option longopts[] = {
 		{ "algorithm", required_argument, NULL, 'a' },
@@ -583,6 +586,7 @@ int main(int argc, char **argv)
 		{ "size",      required_argument, NULL, 's' },
 		{ "streams",   required_argument, NULL, 't' },
 		{ "version",   no_argument, NULL, 'V' },
+		{ "sysroot",   required_argument, NULL, OPT_SYSROOT },
 		{ NULL, 0, NULL, 0 }
 	};
 
@@ -641,6 +645,11 @@ int main(int argc, char **argv)
 		case 'V':
 			printf(UTIL_LINUX_VERSION);
 			return EXIT_SUCCESS;
+		case OPT_SYSROOT:
+			if(path_set_prefix(optarg))
+				err(EXIT_FAILURE, _("invalid argument to %s"), "--sysroot");
+			/* TODO: mod->system = SYSTEM_SNAPSHOT; */
+			break;
 		case 'h':
 			usage();
 		default:
