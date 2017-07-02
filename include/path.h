@@ -3,6 +3,11 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <dirent.h>
+
+/* Check your code: Absolute paths must be used with path_* functions! */
+#define PATH_REQUIRE_RELATIVE(path) \
+	assert( *path != '/' )
 
 /* Returns a pointer to a static buffer which may be destroyed by any later
 path_* function call. NULL means error and errno will be set. */
@@ -22,6 +27,16 @@ extern uint64_t path_read_u64(const char *path, ...)
 
 extern int path_exist(const char *path, ...)
 		      __attribute__ ((__format__ (__printf__, 1, 2)));
+
+extern int path_stat(const char *pathname, struct stat *buf);
+extern int path_open(const char *pathname, int flags);
+extern FILE *path_fopenP(const char *path, const char *mode);
+extern size_t path_readlink(const char *pathname, char *buf, size_t bufsiz);
+extern DIR *path_opendir(const char *dirname);
+extern int path_scandir(const char *dir, struct dirent ***namelist,
+	int (*sel)(const struct dirent *),
+	int (*compar)(const struct dirent **, const struct dirent **));
+
 
 #ifdef HAVE_CPU_SET_T
 # include "cpuset.h"

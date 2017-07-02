@@ -27,6 +27,7 @@
 #include <inttypes.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 #include "all-io.h"
 #include "path.h"
@@ -270,6 +271,56 @@ path_exist(const char *path, ...)
 	va_end(ap);
 
 	return p && faccessat(rootfd, p, F_OK, 0) == 0;
+}
+
+int
+path_stat(const char *p, struct stat *buf)
+{
+	PATH_REQUIRE_ABSOLUTE(p);
+	p = path_relative_if_sysroot(p);
+	return fstatat(rootfd, p, buf, 0);
+}
+
+int
+path_open(const char *p, int flags)
+{
+	PATH_REQUIRE_ABSOLUTE(p);
+	p = path_relative_if_sysroot(p);
+	return openat(rootfd, p, flags);
+}
+
+FILE*
+path_fopenP(const char *path, const char *mode)
+{
+	return path_fopen(mode, 0, path);
+}
+
+size_t
+path_readlink(const char *p, char *buf, size_t bufsiz)
+{
+	PATH_REQUIRE_ABSOLUTE(p);
+	p = path_relative_if_sysroot(p);
+	return readlinkat(rootfd, p, buf, bufsiz);
+}
+
+DIR *
+path_opendir(const char *dirname)
+{
+	int fd = path_open(dirname, O_RDONLY|O_CLOEXEC|O_DIRECTORY);
+	if (fd < 0) {
+		return NULL;
+	}
+	return fdopendir(fd);
+}
+
+int
+path_scandir(const char *p, struct dirent ***namelist,
+	int (*sel)(const struct dirent *),
+	int (*compar)(const struct dirent **, const struct dirent **))
+{
+	PATH_REQUIRE_ABSOLUTE(p);
+	p = path_relative_if_sysroot(p);
+	return scandirat(rootfd, p, namelist, sel, compar);
 }
 
 #ifdef HAVE_CPU_SET_T
