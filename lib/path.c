@@ -77,22 +77,6 @@ err:
 	return NULL;
 }
 
-static const char *
-path_vcreate_with_prefix(const char *path, va_list ap)
-{
-	strcpy(pathbuf, pathbuf_prefix);
-	int rc = vsnprintf(
-		pathbuf + prefixlen, sizeof(pathbuf) - prefixlen, path, ap);
-
-	if (rc < 0)
-		return NULL;
-	if ((size_t)rc >= sizeof(pathbuf)) {
-		errno = ENAMETOOLONG;
-		return NULL;
-	}
-	return pathbuf;
-}
-
 const char *
 path_get(const char *path, ...)
 {
@@ -101,13 +85,13 @@ path_get(const char *path, ...)
 	static char userbuf[sizeof(pathbuf)];
 
 	va_start(ap, path);
-	p = path_vcreate_with_prefix(path, ap);
+	p = path_vcreate(path, ap);
 	va_end(ap);
 
 	if (p) {
 		/* do not hand out our global buffer to the user to avoid overlapping
 		 * problems in case we get this string back from the user */
-		p = strcpy(userbuf, p);
+		p = strcpy(userbuf, pathbuf);
 	}
 
 	return p;

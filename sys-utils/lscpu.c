@@ -1430,14 +1430,11 @@ read_nodes(struct lscpu_desc *desc)
 	int i = 0;
 	DIR *dir;
 	struct dirent *d;
-	const char *path;
 
 	desc->nnodes = 0;
 
 	/* number of NUMA node */
-	if (!(path = path_get(_PATH_SYS_NODE)))
-		return;
-	if (!(dir = opendir(path)))
+	if (!(dir = path_opendir(_PATH_SYS_NODE)))
 		return;
 	while ((d = readdir(dir))) {
 		if (is_node_dirent(d))
