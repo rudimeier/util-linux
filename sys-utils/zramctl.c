@@ -278,7 +278,7 @@ static int zram_used(struct zram *z)
 static int zram_has_control(struct zram *z)
 {
 	if (!z->control_probed) {
-		z->has_control = path_exist(_PATH_SYS_CLASS "/zram-control/") == 0 ? 1 : 0;
+		z->has_control = path_exist(_PATH_SYS_CLASS "/zram-control/");
 		z->control_probed = 1;
 		DBG(fprintf(stderr, "zram-control: %s", z->has_control ? "yes" : "no"));
 	}
