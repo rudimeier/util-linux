@@ -28,29 +28,6 @@ matrix:
       env: CCVER="4.0" MAKE_CHECK="root" WERROR="yes"
     - compiler: clang
       env: CCVER="5.0" MAKE_CHECK="root" WERROR="yes"
-    # test old Ubuntu 12.04 and OSX for compatibility
-    - dist: precise
-      compiler: gcc
-      env: PRECISE="yes" MAKE_CHECK="root" WERROR="-Wno-error=uninitialized -Wno-error=override-init -Wno-error=nonnull"
-    - dist: precise
-      compiler: clang
-      env: PRECISE="yes" MAKE_CHECK="root" WERROR="-Wno-error=nonnull"
-    - os: osx
-      osx_image: xcode6.4
-      compiler: clang
-      env: MAKE_CHECK="root" WERROR="yes"
-    - os: osx
-      osx_image: xcode7.3
-      compiler: clang
-      env: MAKE_CHECK="root" WERROR="yes"
-    - os: osx
-      osx_image: xcode8.3
-      compiler: clang
-      env: MAKE_CHECK="root" WERROR="yes"
-    - os: osx
-      osx_image: xcode9.3
-      compiler: clang
-      env: MAKE_CHECK="root" WERROR="yes"
 
 branches:
   only:
@@ -65,6 +42,9 @@ before_install:
   - env | grep -v "encrypted" | LC_ALL=C sort
   # workaround travis-ci issue #5301
   - unset PYTHON_CFLAGS
+  - unset PYTHON_CONFIGURE_OPTS
+  - PATH=$(echo "$PATH" | sed -e 's@\(:\|^\)/opt/python/[^:]*@\1@g' -e 's/::*/:/g' -e 's/^://g'  -e 's/:$//g')
+  - env | grep -v "encrypted" | LC_ALL=C sort
 
 install:
   - source ./.travis-functions.sh

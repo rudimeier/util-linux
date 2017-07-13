@@ -29,6 +29,9 @@ function xconfigure
 	which "$CC"
 	"$CC" --version
 
+	export PKG_CONFIG_PATH=/usr/lib/i386-linux-gnu/pkgconfig
+	export CFLAGS="-m32 -g -O2"
+
 	./configure "$@" $OSX_CONFOPTS
 	err=$?
 	if [ "$DUMP_CONFIG_LOG" = "short" ]; then
@@ -39,11 +42,11 @@ function xconfigure
 
 	# use -Werror only for make not in configure
 	if test -z "$WERROR"; then
-		ccc="CFLAGS=-g -O2"
+		ccc="CFLAGS=$CFLAGS"
 	elif test "$WERROR" = "yes" ; then
-		ccc="CFLAGS=-g -O2 -Werror"
+		ccc="CFLAGS=$CFLAGS -Werror"
 	else
-		ccc="CFLAGS=-g -O2 -Werror $WERROR"
+		ccc="CFLAGS=$CFLAGS -Werror $WERROR"
 	fi
 
 	return $err
@@ -130,7 +133,7 @@ function cc_update_prepare()
 	# add some source repositories for optional compiler updates
 	if echo "$CC" | grep -q "gcc"; then
 		CC="gcc-$CCVER"
-		CC_PACKAGES="gcc-$CCVER"
+		CC_PACKAGES="gcc-$CCVER gcc-$CCVER-multilib"
 		sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
 	elif echo "$CC" | grep -q "clang"; then
 		local subrepo=$(get_dist_codename) || return
@@ -178,23 +181,57 @@ function travis_install_script
 		"
 	fi
 
+	echo "xxxxx: python before"
+	ls -ld /usr/bin/pyth*
+	file $(readlink -f $(which python))
+	python --version
+
 	# install required packages
 	sudo apt-get -qq update --fix-missing
-	sudo apt-get install -qq >/dev/null \
+	sudo aptitude -y -V  install \
 		autopoint \
 		gettext \
-		libcap-ng-dev \
-		libncursesw5-dev \
-		libpam-dev \
-		libudev-dev \
+		gcc-multilib \
+		lib32ncursesw5-dev \
+		lib32readline6-dev \
+		libcap-ng:i386 \
+		libcap-ng-dev:i386 \
+		libpam-dev:i386 \
+		libudev-dev:i386 \
+		zlib1g-dev:i386 \
 		$CC_PACKAGES \
 		$TEST_PACKAGES \
 		|| return
 
+
+	sudo aptitude -y -V  install \
+		libpython-all-dev:i386 \
+		libpython-dev:i386 \
+		python:i386 \
+		python2.7-minimal:i386 \
+		|| return
+
+	echo "xxxxx: python after"
+	ls -ld /usr/bin/pyth*
+	file $(readlink -f $(which python))
+	python --version
+	dpkg -l | grep python
+
+	sudo aptitude -y -V  install \
+		python-minimal:i386 \
+		python2.7:i386 \
+		|| return
+
+	echo "xxxxx: python after 2"
+	ls -ld /usr/bin/pyth*
+	file $(readlink -f $(which python))
+	python --version
+	dpkg -l | grep python
+
 	# install only if available (e.g. Ubuntu Trusty)
-	sudo apt-get install -qq >/dev/null \
-		libsystemd-daemon-dev \
-		libsystemd-journal-dev \
+	sudo aptitude -y -V  install \
+		libsystemd-daemon-dev:i386 \
+		libsystemd-journal-dev:i386 \
 		|| true
 
 	# check $CC
