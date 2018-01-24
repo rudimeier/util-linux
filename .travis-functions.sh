@@ -15,7 +15,10 @@ fi
 # travis docs say we get 1.5 CPUs
 MAKE="make -j2"
 DUMP_CONFIG_LOG="short"
+DO_MAKE_CHECK="yes"
+DO_MAKE_INSTALL="yes"
 export TS_OPT_parsable="yes"
+test "$DO_MAKE_CHECK" = "yes" || xxx='TS_COMMAND="true"'
 
 # workaround ugly warning on travis OSX,
 # see https://github.com/direnv/direnv/issues/210
@@ -33,6 +36,16 @@ function xconfigure
 	elif [ "$DUMP_CONFIG_LOG" = "full" ]; then
 		cat config.log
 	fi
+
+	# use -Werror only for make not in configure
+	if test -z "$WERROR"; then
+		ccc="CFLAGS=-g -O2"
+	elif test "$WERROR" = "yes" ; then
+		ccc="CFLAGS=-g -O2 -Werror"
+	else
+		ccc="CFLAGS=-g -O2 -Werror $WERROR"
+	fi
+
 	return $err
 }
 
@@ -56,13 +69,14 @@ function check_nonroot
 		--disable-makeinstall-chown \
 		--enable-all-programs \
 		|| return
-	$MAKE || return
+	$MAKE "$ccc"|| return
 
 	osx_prepare_check
-	$MAKE check TS_OPTS="$opts" || return
+	$MAKE "$ccc" check $xxx TS_OPTS="$opts" || return
 
 	make_checkusage || return
 
+	test "$DO_MAKE_INSTALL" = "yes" || return 0
 	$MAKE install DESTDIR=/tmp/dest || return
 }
 
@@ -73,11 +87,13 @@ function check_root
 	xconfigure \
 		--enable-all-programs \
 		|| return
-	$MAKE || return
+	$MAKE "$ccc" || return
 
-	$MAKE check TS_COMMAND="true" || return
+	$MAKE "$ccc" check TS_COMMAND="true" || return
 	osx_prepare_check
 	sudo -E $MAKE check TS_OPTS="$opts" || return
+
+	make_checkusage || return
 
 	# root on osx has not enough permission for make install ;)
 	[ "$TRAVIS_OS_NAME" = "osx" ] && return
@@ -93,6 +109,48 @@ function check_dist
 	$MAKE distcheck || return
 }
 
+# should work for all Ubuntu versions
+function get_dist_codename()
+{
+	(. /etc/lsb-release &&
+		test -n $DISTRIB_CODENAME && echo "$DISTRIB_CODENAME") && return
+
+	(. /etc/os-release &&
+		test -n $VERSION_CODENAME && echo "$VERSION_CODENAME") && return
+
+	echo "error, unable to determine distro codename" >&2
+	echo "unknown"
+	return 1
+}
+
+# Prepare updates of $CC to $CCVER. This function sets CC and CC_PACKAGES and
+# adds some custom repos. Should work for many Ubuntu versions.
+function cc_update_prepare()
+{
+	# add some source repositories for optional compiler updates
+	if echo "$CC" | grep -q "gcc"; then
+		CC="gcc-$CCVER"
+		CC_PACKAGES="gcc-$CCVER"
+		sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+	elif echo "$CC" | grep -q "clang"; then
+		local subrepo=$(get_dist_codename) || return
+
+		CC="clang-$CCVER"
+		CC_PACKAGES="clang-$CCVER"
+
+		if ! [[ $CCVER =~ ^3 ]]; then
+			wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key| sudo apt-key add -
+			# the versioned repo may or may not exists ...
+			sudo add-apt-repository -y "deb http://apt.llvm.org/$subrepo/ llvm-toolchain-$subrepo-$CCVER main"
+		fi
+	else
+		echo "error, don't know how to update unknown CC='$CC'" >&2
+		return 1
+	fi
+
+	# this function ignores most errors, after installation we will check $CC
+}
+
 function travis_install_script
 {
 	if [ "$TRAVIS_OS_NAME" = "osx" ]; then
@@ -100,20 +158,37 @@ function travis_install_script
 		return
 	fi
 
-	# install required packages
-	sudo apt-get -qq update --fix-missing
-	sudo apt-get install -qq >/dev/null \
+	# optionally update compiler
+	local CC_PACKAGES
+	if test -n "$CCVER"; then
+		cc_update_prepare || return
+		echo "NOTE: added packages '$CC_PACKAGES' to update CC='$CC'"
+	fi
+
+	local TEST_PACKAGES
+	if test "$DO_MAKE_CHECK" = "yes"; then
+	TEST_PACKAGES="
 		bc \
 		btrfs-tools \
 		dnsutils \
-		libcap-ng-dev \
-		libncursesw5-dev \
-		libpam-dev \
-		libudev-dev \
 		gtk-doc-tools \
 		mdadm \
 		ntp \
 		socat \
+		"
+	fi
+
+	# install required packages
+	sudo apt-get -qq update --fix-missing
+	sudo apt-get install -qq >/dev/null \
+		autopoint \
+		gettext \
+		libcap-ng-dev \
+		libncursesw5-dev \
+		libpam-dev \
+		libudev-dev \
+		$CC_PACKAGES \
+		$TEST_PACKAGES \
 		|| return
 
 	# install only if available (e.g. Ubuntu Trusty)
@@ -121,6 +196,12 @@ function travis_install_script
 		libsystemd-daemon-dev \
 		libsystemd-journal-dev \
 		|| true
+
+	# check $CC
+	if ! type "$CC"; then
+		echo "error, update $CC failed" >&2
+		return 1
+	fi
 }
 
 function osx_install_script
@@ -143,6 +224,7 @@ function osx_install_script
 function osx_prepare_check
 {
 	[ "$TRAVIS_OS_NAME" = "osx" ] || return 0
+	[ "$DO_MAKE_CHECK" = "yes" ] ||  return 0
 
 	# these ones only need to be gnu for our test-suite
 	brew install coreutils findutils gnu-tar gnu-sed
